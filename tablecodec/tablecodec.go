@@ -69,10 +69,34 @@ func EncodeRowKeyWithHandle(tableID int64, handle int64) kv.Key {
 	return buf
 }
 
+func checkLengthKeysEqual(key1 kv.Key, key2 kv.Key) bool {
+	for i, v := range key1 {
+		if v != key2[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // DecodeRecordKey decodes the key and gets the tableID, handle.
 func DecodeRecordKey(key kv.Key) (tableID int64, handle int64, err error) {
 	/* Your code here */
-	return
+	if len(key) != RecordRowKeyLen {
+		return -1, -1, errors.New("invalid key length")
+	}
+	if !checkLengthKeysEqual(key[0:1], tablePrefix) {
+		return -1, -1, errors.New("invalid table prefix")
+	}
+	if !checkLengthKeysEqual(key[idLen+1:idLen+3], recordPrefixSep) {
+		return -1, -1, errors.New("invalid record prefix")
+	}
+	if _, tableID, err = codec.DecodeInt(key[1 : idLen+1]); err != nil {
+		return -1, -1, errors.New("invalid tableID")
+	}
+	if _, handle, err = codec.DecodeInt(key[prefixLen:RecordRowKeyLen]); err != nil {
+		return -1, -1, errors.New("invalid handle")
+	}
+	return tableID, handle, nil
 }
 
 // appendTableIndexPrefix appends table index prefix  "t[tableID]_i".
@@ -95,6 +119,23 @@ func EncodeIndexSeekKey(tableID int64, idxID int64, encodedValue []byte) kv.Key 
 // DecodeIndexKeyPrefix decodes the key and gets the tableID, indexID, indexValues.
 func DecodeIndexKeyPrefix(key kv.Key) (tableID int64, indexID int64, indexValues []byte, err error) {
 	/* Your code here */
+	if len(key) < RecordRowKeyLen {
+		return -1, -1, nil, errors.New("invalid key length")
+	}
+	if !checkLengthKeysEqual(key[0:1], tablePrefix) {
+		return -1, -1, nil, errors.New("invalid table prefix")
+	}
+	if !checkLengthKeysEqual(key[idLen+1:idLen+3], indexPrefixSep) {
+		return -1, -1, nil, errors.New("invalid index prefix")
+	}
+	if _, tableID, err = codec.DecodeInt(key[1 : idLen+1]); err != nil {
+		return -1, -1, nil, errors.New("invalid tableID")
+	}
+	if _, indexID, err = codec.DecodeInt(key[prefixLen:RecordRowKeyLen]); err != nil {
+		return -1, -1, nil, errors.New("invalid indexID")
+	}
+	indexValues = make([]byte, len(key)-RecordRowKeyLen)
+	copy(indexValues, key[RecordRowKeyLen:])
 	return tableID, indexID, indexValues, nil
 }
 
